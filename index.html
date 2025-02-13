@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>シンプルシューティングゲーム</title>
+  <style>
+    body {
+      margin: 0;
+      background: #222;
+      color: #fff;
+      text-align: center;
+      font-family: Arial, sans-serif;
+    }
+    canvas {
+      background: #000;
+      display: block;
+      margin: 20px auto;
+      border: 2px solid #fff;
+    }
+  </style>
+</head>
+<body>
+  <h1>シンプルシューティングゲーム</h1>
+  <canvas id="gameCanvas" width="400" height="600"></canvas>
+  
+  <script>
+    // Canvasとコンテキストの取得
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // プレイヤーの設定
+    const playerWidth = 40;
+    const playerHeight = 20;
+    let playerX = canvas.width / 2 - playerWidth / 2;
+    const playerY = canvas.height - playerHeight - 10;
+    const playerSpeed = 5;
+
+    // 弾の設定
+    let bullets = [];
+    const bulletSpeed = 7;
+    const bulletWidth = 4;
+    const bulletHeight = 10;
+
+    // 敵の設定
+    let enemies = [];
+    const enemyWidth = 40;
+    const enemyHeight = 20;
+    const enemySpeed = 2;
+    let enemyDirection = 1; // 1: 右移動、-1: 左移動
+
+    // 敵を複数配置（行×列）
+    const enemyRows = 3;
+    const enemyCols = 5;
+    const enemyMargin = 20;
+    for (let r = 0; r < enemyRows; r++) {
+      for (let c = 0; c < enemyCols; c++) {
+        const enemyX = c * (enemyWidth + enemyMargin) + enemyMargin;
+        const enemyY = r * (enemyHeight + enemyMargin) + enemyMargin;
+        enemies.push({ x: enemyX, y: enemyY, width: enemyWidth, height: enemyHeight });
+      }
+    }
+
+    // キー操作の設定
+    let rightPressed = false;
+    let leftPressed = false;
+    let spacePressed = false;
+    let lastShotTime = 0;
+    const shotInterval = 300; // ms（ショットの間隔）
+
+    document.addEventListener('keydown', keyDownHandler);
+    document.addEventListener('keyup', keyUpHandler);
+
+    function keyDownHandler(e) {
+      if (e.key === "Right" || e.key === "ArrowRight") {
+        rightPressed = true;
+      } else if (e.key === "Left" || e.key === "ArrowLeft") {
+        leftPressed = true;
+      } else if (e.key === " " || e.key === "Spacebar") {
+        spacePressed = true;
+      }
+    }
+
+    function keyUpHandler(e) {
+      if (e.key === "Right" || e.key === "ArrowRight") {
+        rightPressed = false;
+      } else if (e.key === "Left" || e.key === "ArrowLeft") {
+        leftPressed = false;
+      } else if (e.key === " " || e.key === "Spacebar") {
+        spacePressed = false;
+      }
+    }
+
+    // プレイヤーの描画
+    function drawPlayer() {
+      ctx.fillStyle = "#0f0";
+      ctx.fillRect(playerX, playerY, playerWidth, playerHeight);
+    }
+
+    // 弾の描画
+    function drawBullets() {
+      ctx.fillStyle = "#ff0";
+      for (let bullet of bullets) {
+        ctx.fillRect(bullet.x, bullet.y, bulletWidth, bulletHeight);
+      }
+    }
+
+    // 敵の描画
+    function drawEnemies() {
+      ctx.fillStyle = "#f00";
+      for (let enemy of enemies) {
+        ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+      }
+    }
+
+    // 弾の移動
+    function moveBullets() {
+      for (let i = bullets.length - 1; i >= 0; i--) {
+        bullets[i].y -= bulletSpeed;
+        // 画面外に出た弾は配列から削除
+        if (bullets[i].y < 0) {
+          bullets.splice(i, 1);
+        }
+      }
+    }
+
+    // 敵の移動
+    function moveEnemies() {
+      // 敵グループ全体の左右の端をチェック
+      let minX = Infinity, maxX = -Infinity;
+      for (let enemy of enemies) {
+        if (enemy.x < minX) minX = enemy.x;
+        if (enemy.x + enemy.width > maxX) maxX = enemy.x + enemy.width;
+      }
+      // 画面の端に達したら移動方向を反転し、下に移動
+      if (maxX >= canvas.width || minX <= 0) {
+        enemyDirection *= -1;
+        for (let enemy of enemies) {
+          enemy.y += enemyHeight; // 下に移動
+        }
+      }
+      // 敵を水平方向に移動
+      for (let enemy of enemies) {
+        enemy.x += enemySpeed * enemyDirection;
+      }
+    }
+
+    // 弾と敵の衝突判定
+    function collisionDetection() {
+      for (let i = bullets.length - 1; i >= 0; i--) {
+        let bullet = bullets[i];
+        for (let j = enemies.length - 1; j >= 0; j--) {
+          let enemy = enemies[j];
+          if (
+            bullet.x < enemy.x + enemy.width &&
+            bullet.x + bulletWidth > enemy.x &&
+            bullet.y < enemy.y + enemy.height &&
+            bullet.y + bulletHeight > enemy.y
+          ) {
+            // 衝突したら弾と敵を削除
+            bullets.splice(i, 1);
+            enemies.splice(j, 1);
+            break;
+          }
+        }
+      }
+    }
+
+    // メインループ
+    function gameLoop(timestamp) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // プレイヤーの移動
+      if (rightPressed && playerX < canvas.width - playerWidth) {
+        playerX += playerSpeed;
+      }
+      if (leftPressed && playerX > 0) {
+        playerX -= playerSpeed;
+      }
+
+      // ショット（スペースキー）の処理
+      if (spacePressed) {
+        if (timestamp - lastShotTime > shotInterval) {
+          // 弾をプレイヤーの中央から発射
+          bullets.push({
+            x: playerX + playerWidth / 2 - bulletWidth / 2,
+            y: playerY
+          });
+          lastShotTime = timestamp;
+        }
+      }
+
+      moveBullets();
+      moveEnemies();
+      collisionDetection();
+
+      drawPlayer();
+      drawBullets();
+      drawEnemies();
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    requestAnimationFrame(gameLoop);
+  </script>
+</body>
+</html>
